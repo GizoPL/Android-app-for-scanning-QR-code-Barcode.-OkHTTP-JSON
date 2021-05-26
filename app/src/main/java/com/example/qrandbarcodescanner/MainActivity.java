@@ -20,13 +20,14 @@ import com.google.gson.JsonParser;
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     Button scanBtn;
-
+    String serverInfo = null;
+    String serialNumber;
+    String id;
+    String specification;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         scanBtn = findViewById(R.id.scanBtn);
         scanBtn.setOnClickListener(this);
     }
@@ -49,15 +50,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     protected  void  onActivityResult(int requestCode, int resultCode, Intent data){
-
-
+        scanBtn.setVisibility(View.INVISIBLE);
         IntentResult result = IntentIntegrator.parseActivityResult(requestCode,resultCode, data);
+        String requestID = "http://api.seev.pro:5000/resources/qrdata/" + result.getContents();
+
+        Handler handler = new Handler();
+
+            GetObjectFromServer showInfo = new GetObjectFromServer();
+            showInfo.execute(requestID);
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+
+                    serverInfo = showInfo.getServerInfo();
+
+                }
+            }, 1000);
+
 
         if (result != null){
-            if (result.getContents() != null){
+            if (requestID != null){
                 AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setTitle("Result of scanning:");
-                builder.setMessage(result.getContents());
+                builder.setTitle("Object info:");
                 builder.setPositiveButton("Scan again", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
@@ -65,16 +79,51 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     }
                 }).setNegativeButton("Exit", new DialogInterface.OnClickListener() {
                     @Override
-                    public void onClick(DialogInterface dialog, int which) { finish();
-                     }
+                    public void onClick(DialogInterface dialog, int which) { finish(); }
                 });
 
-                AlertDialog dialog = builder.create();
-                dialog.show();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        if(serverInfo != null) {
+                            JsonObject jsonObject = new JsonParser().parse(serverInfo.toString()).getAsJsonObject();
+                            serialNumber = jsonObject.get("seriesNumber").getAsString();
+                            id = jsonObject.get("id").getAsString();
+                            specification = jsonObject.get("specification").getAsString();
+                            System.out.println(serialNumber);
+                            System.out.println(id);
+                            System.out.println(specification);
+
+                            //serverInfo.toString()
+                        builder.setMessage("Serial Number: "+ serialNumber+  "\n" + "Id: "  +id+ "\n" + "Specification:" + specification+"\n");
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                        serverInfo = null;
+                            handler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    scanBtn.setVisibility(View.VISIBLE);
+                                }
+                            }, 300);
+                        }
+                        else{
+                            builder.setMessage("There was an error with trying to get data from server. Make sure that scanned object is used in laboratory or check connection and try again.");
+                            AlertDialog dialog = builder.create();
+                            dialog.show();
+
+                            handler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    scanBtn.setVisibility(View.VISIBLE);
+                                }
+                            }, 300);
+                        }
+                    }
+                }, 1500);
             }
             else{
                 Toast.makeText(this, "No Result", Toast.LENGTH_LONG).show();
-
             }
         }else{
             super.onActivityResult(requestCode,requestCode,data);
